@@ -1,10 +1,12 @@
 Option Explicit
 
 '==================================================================
-'  Draw Squound  -  module "Draw_Squound1"
+'  Draw Squound 0.2.1  -  module "Draw_Squound1"
 '
-'  Draws a dimensioned "squound" (rounded rectangle) on the Front
-'  Plane of the active part.
+'  Draws a dimensioned "squound" (rounded rectangle) into the sketch
+'  that is currently open for editing, centred on that sketch's
+'  origin. Whichever plane or face the sketch sits on is the plane
+'  the shape lands on.
 '
 '  Every length passed to DrawAndDimensionSketch is in METRES,
 '  which is the SolidWorks internal unit system.
@@ -13,7 +15,6 @@ Option Explicit
 Dim swApp As SldWorks.SldWorks
 Dim swModel As SldWorks.ModelDoc2
 Dim swSketchMgr As SldWorks.SketchManager
-Dim boolstatus As Boolean
 
 Sub main()
 
@@ -21,12 +22,14 @@ Sub main()
     Set swModel = swApp.ActiveDoc
 
     If swModel Is Nothing Then
-        MsgBox "No SolidWorks document is open. Please open a part document and try again.", vbCritical
+        MsgBox "No SolidWorks document is open. Please open a document and try again.", vbCritical
         Exit Sub
     End If
 
-    If swModel.GetType <> swDocumentTypes_e.swDocPART Then
-        MsgBox "This macro works on part documents only.", vbCritical
+    Set swSketchMgr = swModel.SketchManager
+
+    If swSketchMgr.ActiveSketch Is Nothing Then
+        MsgBox "No sketch is open for editing. Start or edit a sketch, then run the macro again.", vbCritical
         Exit Sub
     End If
 
@@ -62,21 +65,14 @@ Public Sub DrawAndDimensionSketch(ByVal swAppIn As SldWorks.SldWorks, _
         Exit Sub
     End If
 
-    ' --- start a fresh sketch on the Front Plane -------------------
-    swModel.ClearSelection2 True
-
-    boolstatus = swModel.Extension.SelectByID2("Front Plane", "PLANE", 0, 0, 0, False, 0, Nothing, 0)
-    If Not boolstatus Then
-        ' Templates made before 2010, and non-English installs, use other names
-        boolstatus = swModel.Extension.SelectByID2("Front", "PLANE", 0, 0, 0, False, 0, Nothing, 0)
-    End If
-
-    If Not boolstatus Then
-        MsgBox "Could not select the Front Plane in this document.", vbCritical
+    ' --- draw into the sketch that is already open ------------------
+    ' All coordinates below are sketch coordinates, so the shape lands
+    ' on whatever plane or face this sketch belongs to.
+    If swSketchMgr.ActiveSketch Is Nothing Then
+        MsgBox "No sketch is open for editing. Start or edit a sketch, then run the macro again.", vbCritical
         Exit Sub
     End If
 
-    swSketchMgr.InsertSketch True
     swModel.ClearSelection2 True
 
     ' Put the geometry straight into the model database. Left at the default
@@ -173,9 +169,9 @@ Public Sub DrawAndDimensionSketch(ByVal swAppIn As SldWorks.SldWorks, _
     SetDimValue swRadDim, R, "CornerRadius"
     swModel.ClearSelection2 True
 
-    swSketchMgr.InsertSketch True                    ' exit the sketch
-    swModel.EditRebuild3
-    swModel.ViewZoomtofit2
+    ' The sketch is left open so you can carry on working in it.
+    ' AddToDB bypasses the graphics layer, so ask for a redraw.
+    swModel.GraphicsRedraw2
 
     Exit Sub
 

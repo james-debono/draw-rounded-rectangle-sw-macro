@@ -1,7 +1,7 @@
 Option Explicit
 
 '==================================================================
-'  Draw Squound  -  code behind "UserForm1"
+'  Draw Squound 0.2.1  -  code behind "UserForm1"
 '
 '  TextBox1 = Height, TextBox2 = Width, TextBox3 = Corner Radius,
 '  all entered in millimetres to match the form labels.
@@ -16,7 +16,7 @@ Private Sub CommandButton1_Click()
     Set swModel = swApp.ActiveDoc
 
     If swModel Is Nothing Then
-        MsgBox "No SolidWorks document is open. Please open a part document and try again.", vbCritical
+        MsgBox "No SolidWorks document is open. Please open a document and try again.", vbCritical
         Exit Sub
     End If
 
