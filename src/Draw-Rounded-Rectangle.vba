@@ -1,223 +1,289 @@
 Option Explicit
 
-' Global declarations (as per your original structure)
+'==================================================================
+'  Draw Squound  -  module "Draw_Squound1"
+'
+'  Draws a dimensioned "squound" (rounded rectangle) on the Front
+'  Plane of the active part.
+'
+'  Every length passed to DrawAndDimensionSketch is in METRES,
+'  which is the SolidWorks internal unit system.
+'==================================================================
+
 Dim swApp As SldWorks.SldWorks
 Dim swModel As SldWorks.ModelDoc2
 Dim swSketchMgr As SldWorks.SketchManager
-Dim swSelMgr As SldWorks.SelectionMgr
 Dim boolstatus As Boolean
-Dim longstatus As Long, longwarnings As Long
 
 Sub main()
 
     Set swApp = Application.SldWorks
     Set swModel = swApp.ActiveDoc
-    
+
     If swModel Is Nothing Then
         MsgBox "No SolidWorks document is open. Please open a part document and try again.", vbCritical
         Exit Sub
     End If
 
-    ' Show the form
+    If swModel.GetType <> swDocumentTypes_e.swDocPART Then
+        MsgBox "This macro works on part documents only.", vbCritical
+        Exit Sub
+    End If
+
     UserForm1.Show
-    
+
 End Sub
 
-Public Sub DrawAndDimensionSketch(swApp As SldWorks.SldWorks, swModel As SldWorks.ModelDoc2, H As Double, W As Double, R As Double)
 
+'------------------------------------------------------------------
+'  W = width  (along sketch X)
+'  H = height (along sketch Y)
+'  R = corner radius
+'  All in metres.
+'------------------------------------------------------------------
+' The object parameters are ByVal so that VBA converts the interface for us.
+' Passed ByRef, handing a SketchLine to a SketchSegment parameter (or an
+' Object to a typed one) is a "ByRef argument type mismatch" compile error.
+Public Sub DrawAndDimensionSketch(ByVal swAppIn As SldWorks.SldWorks, _
+                                  ByVal swModelIn As SldWorks.ModelDoc2, _
+                                  ByVal W As Double, ByVal H As Double, ByVal R As Double)
+
+    Set swApp = swAppIn
+    Set swModel = swModelIn
     Set swSketchMgr = swModel.SketchManager
-    Set swSelMgr = swModel.SelectionMgr
 
-    ' Ensure a sketch is active on the Front Plane
+    If W <= 0 Or H <= 0 Or R <= 0 Then
+        MsgBox "Width, height and corner radius must all be greater than zero.", vbCritical
+        Exit Sub
+    End If
+
+    If R >= W / 2 Or R >= H / 2 Then
+        MsgBox "The corner radius must be smaller than half the width and half the height.", vbCritical
+        Exit Sub
+    End If
+
+    ' --- start a fresh sketch on the Front Plane -------------------
     swModel.ClearSelection2 True
+
     boolstatus = swModel.Extension.SelectByID2("Front Plane", "PLANE", 0, 0, 0, False, 0, Nothing, 0)
-    
-    ' Enter or activate sketch on Front Plane.
-    ' If a sketch is already active on Front Plane, this will re-enter it.
-    ' If a sketch is active on a different plane, it will exit and re-enter on Front Plane.
+    If Not boolstatus Then
+        ' Templates made before 2010, and non-English installs, use other names
+        boolstatus = swModel.Extension.SelectByID2("Front", "PLANE", 0, 0, 0, False, 0, Nothing, 0)
+    End If
+
+    If Not boolstatus Then
+        MsgBox "Could not select the Front Plane in this document.", vbCritical
+        Exit Sub
+    End If
+
     swSketchMgr.InsertSketch True
-
-    ' Delete existing sketch entities in the current sketch to start clean
-    If Not swSketchMgr.ActiveSketch Is Nothing Then
-        Dim vSketchSegs As Variant
-        vSketchSegs = swSketchMgr.ActiveSketch.GetSketchSegments
-        If Not IsEmpty(vSketchSegs) Then
-            Dim i As Long
-            Dim swSketchSegment_Temp As SldWorks.SketchSegment ' Local declaration for loop
-            For i = 0 To UBound(vSketchSegs)
-                Set swSketchSegment_Temp = vSketchSegs(i)
-                swSketchSegment_Temp.Select4 True, Nothing ' Use Select4 for robustness
-            Next i
-            swModel.EditDelete
-        End If
-        
-        Dim vSketchPoints As Variant
-        vSketchPoints = swSketchMgr.ActiveSketch.GetSketchPoints
-        If Not IsEmpty(vSketchPoints) Then
-            For i = 0 To UBound(vSketchPoints)
-                vSketchPoints(i).Select4 True, Nothing ' Use Select4 for robustness
-            Next i
-            swModel.EditDelete
-        End If
-    End If
-    
     swModel.ClearSelection2 True
-    
-    ' Maximize view for better visibility
-    Dim myModelView As Object
-    Set myModelView = swModel.ActiveView
-    myModelView.FrameState = swWindowState_e.swWindowMaximized
 
-    ' Define half dimensions for easier calculation
-    Dim halfH As Double: halfH = H / 2
+    ' Put the geometry straight into the model database. Left at the default
+    ' False, SketchManager draws through the user interface, and silently
+    ' returns Nothing whenever the geometry falls outside the visible
+    ' graphics area - which is the usual reason a working sketch macro
+    ' suddenly starts failing.
+    Dim bAddToDBOrig As Boolean
+    bAddToDBOrig = swSketchMgr.AddToDB
+
+    On Error GoTo CleanUp
+    swSketchMgr.AddToDB = True
+
+    ' --- corner coordinates ---------------------------------------
     Dim halfW As Double: halfW = W / 2
-    
-    ' Coordinates of the corners, considering the radius R
-    ' These points define the ends of the straight lines and the centers/ends of the arcs
-    Dim x_straight_end_left As Double: x_straight_end_left = -halfH + R
-    Dim x_straight_end_right As Double: x_straight_end_right = halfH - R
-    Dim y_straight_end_top As Double: y_straight_end_top = halfW - R
-    Dim y_straight_end_bottom As Double: y_straight_end_bottom = -halfW + R
-    
-    ' Drawing the lines and arcs
-    Dim skSegment1 As SldWorks.SketchSegment ' Top Line (left segment)
-    Dim skSegment2 As SldWorks.SketchSegment ' Top-Right Arc
-    Dim skSegment3 As SldWorks.SketchSegment ' Right Line
-    Dim skSegment4 As SldWorks.SketchSegment ' Bottom-Right Arc
-    Dim skSegment5 As SldWorks.SketchSegment ' Bottom Line (right segment)
-    Dim skSegment6 As SldWorks.SketchSegment ' Bottom-Left Arc
-    Dim skSegment7 As SldWorks.SketchSegment ' Left Line
-    Dim skSegment8 As SldWorks.SketchSegment ' Top-Left Arc
-    
-    ' Order of creation ensures tangent connections
-    ' Top line (left to right)
-    Set skSegment1 = swSketchMgr.CreateLine(x_straight_end_left, halfW, 0#, x_straight_end_right, halfW, 0#)
-    ' Top-right arc
-    Set skSegment2 = swSketchMgr.CreateTangentArc(x_straight_end_right, halfW, 0#, halfH, y_straight_end_top, 0#, 1)
-    ' Right line (top to bottom)
-    Set skSegment3 = swSketchMgr.CreateTangentArc(halfH, y_straight_end_top, 0#, halfH, y_straight_end_bottom, 0#, 1) ' Start from end of arc2, go to y_straight_end_bottom
-    ' Bottom-right arc
-    Set skSegment4 = swSketchMgr.CreateTangentArc(halfH, y_straight_end_bottom, 0#, x_straight_end_right, -halfW, 0#, 1)
-    ' Bottom line (right to left)
-    Set skSegment5 = swSketchMgr.CreateTangentArc(x_straight_end_right, -halfW, 0#, x_straight_end_left, -halfW, 0#, 1)
-    ' Bottom-left arc
-    Set skSegment6 = swSketchMgr.CreateTangentArc(x_straight_end_left, -halfW, 0#, -halfH, y_straight_end_bottom, 0#, 1)
-    ' Left line (bottom to top)
-    Set skSegment7 = swSketchMgr.CreateTangentArc(-halfH, y_straight_end_bottom, 0#, -halfH, y_straight_end_top, 0#, 1)
-    ' Top-left arc - connects back to the start of skSegment1
-    Set skSegment8 = swSketchMgr.CreateTangentArc(-halfH, y_straight_end_top, 0#, x_straight_end_left, halfW, 0#, 1)
-    
-    ' Apply Explicit Tangent Constraints (usually inferred, but good for robustness)
-    ' Between skSegment8 (Top-Left Arc) and skSegment1 (Top Line)
-    swModel.ClearSelection2 True
-    skSegment8.Select4 True, Nothing
-    skSegment1.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
+    Dim halfH As Double: halfH = H / 2
+    Dim xL As Double: xL = -halfW + R      ' where the top/bottom straights begin
+    Dim xR As Double: xR = halfW - R
+    Dim yB As Double: yB = -halfH + R      ' where the left/right straights begin
+    Dim yT As Double: yT = halfH - R
 
-    ' Between skSegment1 (Top Line) and skSegment2 (Top-Right Arc)
-    swModel.ClearSelection2 True
-    skSegment1.Select4 True, Nothing
-    skSegment2.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
+    Dim swTopLn As SldWorks.SketchLine
+    Dim swRightLn As SldWorks.SketchLine
+    Dim swBottomLn As SldWorks.SketchLine
+    Dim swLeftLn As SldWorks.SketchLine
+    Dim swArcTR As SldWorks.SketchArc
+    Dim swArcBR As SldWorks.SketchArc
+    Dim swArcBL As SldWorks.SketchArc
+    Dim swArcTL As SldWorks.SketchArc
 
-    ' Between skSegment2 (Top-Right Arc) and skSegment3 (Right Line)
-    swModel.ClearSelection2 True
-    skSegment2.Select4 True, Nothing
-    skSegment3.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
+    ' Walked clockwise from the top-left, so every corner turns clockwise (-1).
+    ' CreateArc takes centre, then start, then end.
+    Set swTopLn = swSketchMgr.CreateLine(xL, halfH, 0#, xR, halfH, 0#)
+    Set swArcTR = swSketchMgr.CreateArc(xR, yT, 0#, xR, halfH, 0#, halfW, yT, 0#, -1)
+    Set swRightLn = swSketchMgr.CreateLine(halfW, yT, 0#, halfW, yB, 0#)
+    Set swArcBR = swSketchMgr.CreateArc(xR, yB, 0#, halfW, yB, 0#, xR, -halfH, 0#, -1)
+    Set swBottomLn = swSketchMgr.CreateLine(xR, -halfH, 0#, xL, -halfH, 0#)
+    Set swArcBL = swSketchMgr.CreateArc(xL, yB, 0#, xL, -halfH, 0#, -halfW, yB, 0#, -1)
+    Set swLeftLn = swSketchMgr.CreateLine(-halfW, yB, 0#, -halfW, yT, 0#)
+    Set swArcTL = swSketchMgr.CreateArc(xL, yT, 0#, -halfW, yT, 0#, xL, halfH, 0#, -1)
 
-    ' Between skSegment3 (Right Line) and skSegment4 (Bottom-Right Arc)
-    swModel.ClearSelection2 True
-    skSegment3.Select4 True, Nothing
-    skSegment4.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
-    
-    ' Between skSegment4 (Bottom-Right Arc) and skSegment5 (Bottom Line)
-    swModel.ClearSelection2 True
-    skSegment4.Select4 True, Nothing
-    skSegment5.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
+    swSketchMgr.AddToDB = bAddToDBOrig
 
-    ' Between skSegment5 (Bottom Line) and skSegment6 (Bottom-Left Arc)
-    swModel.ClearSelection2 True
-    skSegment5.Select4 True, Nothing
-    skSegment6.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
-    
-    ' Between skSegment6 (Bottom-Left Arc) and skSegment7 (Left Line)
-    swModel.ClearSelection2 True
-    skSegment6.Select4 True, Nothing
-    skSegment7.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
-    
-    ' Between skSegment7 (Left Line) and skSegment8 (Top-Left Arc)
-    swModel.ClearSelection2 True
-    skSegment7.Select4 True, Nothing
-    skSegment8.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchTangent
-    
-    ' Add Dimensions
-    Dim myDisplayDimH As SldWorks.DisplayDimension
-    Dim myDisplayDimW As SldWorks.DisplayDimension
-    Dim myDisplayDimR As SldWorks.DisplayDimension
+    ' --- close the loop -------------------------------------------
+    ' AddToDB = True means nothing is inferred, so every relation is
+    ' added by hand below.
+    JoinAt swTopLn, swArcTR, xR, halfH
+    JoinAt swArcTR, swRightLn, halfW, yT
+    JoinAt swRightLn, swArcBR, halfW, yB
+    JoinAt swArcBR, swBottomLn, xR, -halfH
+    JoinAt swBottomLn, swArcBL, xL, -halfH
+    JoinAt swArcBL, swLeftLn, -halfW, yB
+    JoinAt swLeftLn, swArcTL, -halfW, yT
+    JoinAt swArcTL, swTopLn, xL, halfH
 
-    ' Horizontal Dimension (H)
+    ' --- tangency at each corner ----------------------------------
+    AddRelation2 swTopLn, swArcTR, "sgTANGENT"
+    AddRelation2 swArcTR, swRightLn, "sgTANGENT"
+    AddRelation2 swRightLn, swArcBR, "sgTANGENT"
+    AddRelation2 swArcBR, swBottomLn, "sgTANGENT"
+    AddRelation2 swBottomLn, swArcBL, "sgTANGENT"
+    AddRelation2 swArcBL, swLeftLn, "sgTANGENT"
+    AddRelation2 swLeftLn, swArcTL, "sgTANGENT"
+    AddRelation2 swArcTL, swTopLn, "sgTANGENT"
+
+    ' --- keep the straights axis-aligned --------------------------
+    AddRelation1 swTopLn, "sgHORIZONTAL"
+    AddRelation1 swBottomLn, "sgHORIZONTAL"
+    AddRelation1 swRightLn, "sgVERTICAL"
+    AddRelation1 swLeftLn, "sgVERTICAL"
+
+    ' --- one radius drives all four corners -----------------------
     swModel.ClearSelection2 True
-    skSegment1.Select4 True, Nothing ' Select the top line
-    ' Position the dimension above the top line, with some offset
-    Set myDisplayDimH = swModel.AddDimension2(0, halfW + (0.02 * swModel.GetUserUnit(swLengthUnit_e.swLengthUnit_Meters)), 0)
-    If Not myDisplayDimH Is Nothing Then
-        myDisplayDimH.Value = H
-        myDisplayDimH.Name = "D1@Sketch1" ' Name the dimension D1
+    swArcTR.Select4 True, Nothing
+    swArcBR.Select4 True, Nothing
+    swArcBL.Select4 True, Nothing
+    swArcTL.Select4 True, Nothing
+    swModel.SketchAddConstraints "sgSAMELENGTH"
+    swModel.ClearSelection2 True
+
+    ' --- dimensions -----------------------------------------------
+    ' Measured between the two opposing straight sides, so the value is
+    ' the overall size rather than the shortened straight run.
+    Dim gap As Double
+    gap = R + 0.01                                   ' clear of the profile
+
+    AddLinearDim swLeftLn, swRightLn, 0#, -halfH - gap, W, "Width"
+    AddLinearDim swTopLn, swBottomLn, halfW + gap, 0#, H, "Height"
+
+    Dim swRadDim As SldWorks.DisplayDimension
+    swModel.ClearSelection2 True
+    swArcTR.Select4 True, Nothing
+    Set swRadDim = swModel.AddDimension2(halfW + gap, halfH + gap, 0#)
+    SetDimValue swRadDim, R, "CornerRadius"
+    swModel.ClearSelection2 True
+
+    swSketchMgr.InsertSketch True                    ' exit the sketch
+    swModel.EditRebuild3
+    swModel.ViewZoomtofit2
+
+    Exit Sub
+
+CleanUp:
+    swSketchMgr.AddToDB = bAddToDBOrig
+    MsgBox "Draw Squound failed: " & Err.Description & " (error " & Err.Number & ")", vbCritical
+
+End Sub
+
+
+'------------------------------------------------------------------
+'  Helpers
+'------------------------------------------------------------------
+
+' Merges the endpoints of two segments that meet near (x, y).
+' Picking the nearer endpoint avoids depending on how SolidWorks
+' orders an arc's start and end points.
+Private Sub JoinAt(ByVal swSeg1 As SldWorks.SketchSegment, ByVal swSeg2 As SldWorks.SketchSegment, _
+                   ByVal x As Double, ByVal y As Double)
+
+    Dim swPt1 As SldWorks.SketchPoint
+    Dim swPt2 As SldWorks.SketchPoint
+
+    Set swPt1 = EndPointNear(swSeg1, x, y)
+    Set swPt2 = EndPointNear(swSeg2, x, y)
+
+    swModel.ClearSelection2 True
+    swPt1.Select4 True, Nothing
+    swPt2.Select4 True, Nothing
+    swModel.SketchAddConstraints "sgMERGEPOINTS"
+    swModel.ClearSelection2 True
+
+End Sub
+
+Private Function EndPointNear(ByVal swSeg As SldWorks.SketchSegment, _
+                              ByVal x As Double, ByVal y As Double) As SldWorks.SketchPoint
+
+    Dim swPt1 As SldWorks.SketchPoint
+    Dim swPt2 As SldWorks.SketchPoint
+
+    If swSeg.GetType() = swSketchSegments_e.swSketchLINE Then
+        Dim swLine As SldWorks.SketchLine
+        Set swLine = swSeg
+        Set swPt1 = swLine.GetStartPoint2
+        Set swPt2 = swLine.GetEndPoint2
+    Else
+        Dim swArc As SldWorks.SketchArc
+        Set swArc = swSeg
+        Set swPt1 = swArc.GetStartPoint2
+        Set swPt2 = swArc.GetEndPoint2
     End If
-    
-    ' Vertical Dimension (W)
-    swModel.ClearSelection2 True
-    skSegment3.Select4 True, Nothing ' Select the right line
-    ' Position the dimension to the right of the right line, with some offset
-    Set myDisplayDimW = swModel.AddDimension2(halfH + (0.02 * swModel.GetUserUnit(swLengthUnit_e.swLengthUnit_Meters)), 0, 0)
-    If Not myDisplayDimW Is Nothing Then
-        myDisplayDimW.Value = W
-        myDisplayDimW.Name = "D2@Sketch1" ' Name the dimension D2
-    End If
-    
-    ' Radius Dimension (R)
-    swModel.ClearSelection2 True
-    skSegment2.Select4 True, Nothing ' Select one of the arcs
-    ' Position the dimension near the top-right corner, with some offset
-    Set myDisplayDimR = swModel.AddDimension2(halfH + (0.02 * swModel.GetUserUnit(swLengthUnit_e.swLengthUnit_Meters)), halfW + (0.02 * swModel.GetUserUnit(swLengthUnit_e.swLengthUnit_Meters)), 0)
-    If Not myDisplayDimR Is Nothing Then
-        myDisplayDimR.Value = R
-        myDisplayDimR.Name = "D3@Sketch1" ' Name the dimension D3
-    End If
-    
-    ' Make all arcs equal radius (since we're controlling with one R dimension)
-    swModel.ClearSelection2 True
-    skSegment2.Select4 True, Nothing
-    skSegment4.Select4 True, Nothing
-    skSegment6.Select4 True, Nothing
-    skSegment8.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchEqualRadius
-    
-    ' Ensure lines are horizontal/vertical where appropriate
-    swModel.ClearSelection2 True
-    skSegment1.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchHorizontal
-    
-    swModel.ClearSelection2 True
-    skSegment3.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchVertical
-    
-    swModel.ClearSelection2 True
-    skSegment5.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchHorizontal
-    
-    swModel.ClearSelection2 True
-    skSegment7.Select4 True, Nothing
-    swSketchMgr.AddConstraint swSketchCONSTRAINTTYPE_e.swConstraintType_SketchVertical
-    
-    swModel.EditRebuild3 ' Rebuild to apply changes
 
-    swSketchMgr.InsertSketch True ' Exit the sketch
-    
+    If (swPt1.x - x) ^ 2 + (swPt1.y - y) ^ 2 <= (swPt2.x - x) ^ 2 + (swPt2.y - y) ^ 2 Then
+        Set EndPointNear = swPt1
+    Else
+        Set EndPointNear = swPt2
+    End If
+
+End Function
+
+Private Sub AddRelation1(ByVal swSeg As SldWorks.SketchSegment, ByVal constraintName As String)
+
+    swModel.ClearSelection2 True
+    swSeg.Select4 True, Nothing
+    swModel.SketchAddConstraints constraintName
+    swModel.ClearSelection2 True
+
+End Sub
+
+Private Sub AddRelation2(ByVal swSeg1 As SldWorks.SketchSegment, ByVal swSeg2 As SldWorks.SketchSegment, _
+                         ByVal constraintName As String)
+
+    swModel.ClearSelection2 True
+    swSeg1.Select4 True, Nothing
+    swSeg2.Select4 True, Nothing
+    swModel.SketchAddConstraints constraintName
+    swModel.ClearSelection2 True
+
+End Sub
+
+Private Sub AddLinearDim(ByVal swSeg1 As SldWorks.SketchSegment, ByVal swSeg2 As SldWorks.SketchSegment, _
+                         ByVal x As Double, ByVal y As Double, _
+                         ByVal dimValue As Double, ByVal dimName As String)
+
+    Dim swDispDim As SldWorks.DisplayDimension
+
+    swModel.ClearSelection2 True
+    swSeg1.Select4 True, Nothing
+    swSeg2.Select4 True, Nothing
+    Set swDispDim = swModel.AddDimension2(x, y, 0#)
+    SetDimValue swDispDim, dimValue, dimName
+    swModel.ClearSelection2 True
+
+End Sub
+
+' AddDimension2 hands back a DisplayDimension, which is only the
+' annotation. The driving value lives on the Dimension underneath it,
+' and SystemValue is always in metres.
+Private Sub SetDimValue(ByVal swDispDim As SldWorks.DisplayDimension, _
+                        ByVal dimValue As Double, ByVal dimName As String)
+
+    If swDispDim Is Nothing Then Exit Sub
+
+    Dim swDim As SldWorks.Dimension
+    Set swDim = swDispDim.GetDimension
+    If swDim Is Nothing Then Exit Sub
+
+    swDim.SystemValue = dimValue
+    swDim.Name = dimName
+
 End Sub
