@@ -1,11 +1,33 @@
+'==============================================================================
+' Draw Squound - user interface
+'
+' Collects the scale and starts the drawing. All geometry work is done in the
+' main module.
+'
+'   Version   0.3.2
+'   Date      2026-08-13
+'   Author    James Debono
+'   Licence   MIT - full text in the header of the main module
+'   Source    https://github.com/james-debono/solidworks-draw-squound
+'
+' Controls
+'   TextBox1        scale, entered in millimetres
+'   CommandButton1  Draw
+'==============================================================================
+
 Option Explicit
 
-'==================================================================
-'  Draw Squound 0.2.1  -  code behind "UserForm1"
+'--- Notes for maintenance ----------------------------------------------------
 '
-'  TextBox1 = Height, TextBox2 = Width, TextBox3 = Corner Radius,
-'  all entered in millimetres to match the form labels.
-'==================================================================
+' This form owns the scale-to-dimensions rule and nothing else.
+'
+' The scale sets both the height and the width, and the corner radius comes out at
+' CORNER_RADIUS_FRACTION of it. Height and width are passed as two separate
+' numbers rather than tied together by an equal relation, so they can be pulled
+' apart afterwards.
+'------------------------------------------------------------------------------
+
+Private Const CORNER_RADIUS_FRACTION As Double = 0.1
 
 Private Sub CommandButton1_Click()
 
@@ -20,30 +42,22 @@ Private Sub CommandButton1_Click()
         Exit Sub
     End If
 
-    Dim H As Double
-    Dim W As Double
-    Dim R As Double
+    Dim scaleValue As Double
 
-    If Not TryReadMM(TextBox1, H) Then
-        MsgBox "Please enter a valid number for the height.", vbCritical
+    If Not TryReadMM(TextBox1, scaleValue) Then
+        MsgBox "Please enter a valid number for the scale.", vbCritical
         TextBox1.SetFocus
         Exit Sub
     End If
 
-    If Not TryReadMM(TextBox2, W) Then
-        MsgBox "Please enter a valid number for the width.", vbCritical
-        TextBox2.SetFocus
+    If scaleValue <= 0 Then
+        MsgBox "The scale must be greater than zero.", vbCritical
+        TextBox1.SetFocus
         Exit Sub
     End If
 
-    If Not TryReadMM(TextBox3, R) Then
-        MsgBox "Please enter a valid number for the corner radius.", vbCritical
-        TextBox3.SetFocus
-        Exit Sub
-    End If
-
-    ' DrawAndDimensionSketch takes width first, then height, both in metres
-    DrawAndDimensionSketch swApp, swModel, W, H, R
+    ' DrawSquound takes width, then height, then corner radius, all in metres
+    DrawSquound swApp, swModel, scaleValue, scaleValue, scaleValue * CORNER_RADIUS_FRACTION
 
     Me.Hide
 
@@ -68,8 +82,10 @@ End Function
 
 Private Sub UserForm_Initialize()
 
-    TextBox1.Text = "100"    ' height, mm
-    TextBox2.Text = "100"    ' width, mm
-    TextBox3.Text = "10"     ' corner radius, mm
+    ' Shown in the form's title bar, so the version is visible whenever the macro
+    ' is used. Overrides whatever caption the designer holds.
+    Me.Caption = "Draw Squound " & MACRO_VERSION
+
+    TextBox1.Text = "100"    ' scale, mm
 
 End Sub

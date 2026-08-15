@@ -1,16 +1,84 @@
+'==============================================================================
+' Draw Squound
+'
+' Draws a "squound" - a rounded rectangle - into the sketch you already have open
+' for editing, centred on that sketch's origin. Whichever plane or face the sketch
+' sits on is where the shape lands.
+'
+' Type one number for the scale and the corner radius comes out at one tenth of it.
+'
+' No dimensions are added. The shape is built from sketch relations only, so it
+' arrives under-defined and ready to be dragged or dimensioned by hand. Every
+' relation is added explicitly - eight merged endpoints, eight tangents, four
+' horizontal and vertical, and three equal-radius - which leaves exactly five
+' degrees of freedom: position in x and y, plus width, height and radius.
+'
+' That is the right number. Drag a straight side and the shape stays a rounded
+' rectangle rather than coming apart, and if you add your own width, height and
+' radius dimensions later the sketch becomes fully defined with no redundancy.
+'
+' To use, open or start a sketch, then run the macro.
+'
+'   Version   0.3.2
+'   Date      2026-08-13
+'   Author    James Debono
+'   Licence   MIT - full text below
+'   Source    https://github.com/james-debono/solidworks-draw-squound
+'
+'------------------------------------------------------------------------------
+' CHANGELOG (summary - see CHANGELOG.md for the full history)
+'
+'   0.3.2   Version shown in the form's title bar.
+'   0.3.1   Licence and header.
+'   0.3.0   One scale input instead of three, and no driving dimensions.
+'   0.2.1   Draws into the active sketch rather than creating one.
+'   0.2.0   Drawing routine rewritten against the verified API.
+'   0.1.0   Initial version.
+'
+'------------------------------------------------------------------------------
+' MIT Licence
+' SPDX-License-Identifier: MIT
+'
+' Copyright (c) 2026 James Debono
+'
+' Permission is hereby granted, free of charge, to any person obtaining a copy
+' of this software and associated documentation files (the "Software"), to deal
+' in the Software without restriction, including without limitation the rights
+' to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+' copies of the Software, and to permit persons to whom the Software is
+' furnished to do so, subject to the following conditions:
+'
+' The above copyright notice and this permission notice shall be included in all
+' copies or substantial portions of the Software.
+'
+' THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+' IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+' FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+' AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+' LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+' OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+' SOFTWARE.
+'==============================================================================
+
 Option Explicit
 
-'==================================================================
-'  Draw Squound 0.2.1  -  module "Draw_Squound1"
+'--- Notes for maintenance ----------------------------------------------------
 '
-'  Draws a dimensioned "squound" (rounded rectangle) into the sketch
-'  that is currently open for editing, centred on that sketch's
-'  origin. Whichever plane or face the sketch sits on is the plane
-'  the shape lands on.
+' Every length passed to DrawSquound is in METRES, the SolidWorks internal unit
+' system. The form converts from millimetres.
 '
-'  Every length passed to DrawAndDimensionSketch is in METRES,
-'  which is the SolidWorks internal unit system.
-'==================================================================
+' DrawSquound stays general and knows nothing about "scale" - a future form with
+' separate width and height inputs needs no change here.
+'
+' ISketchManager.AddToDB is set True before creating geometry and restored after.
+' Left at the default, SketchManager draws through the user interface and
+' silently returns Nothing when geometry falls outside the visible graphics area.
+' That is the classic cause of a sketch macro that "used to work".
+'------------------------------------------------------------------------------
+
+' Must match the Version line in the header block above. build-library.ps1 checks
+' that they agree and fails the build if they drift. Shown in the form's title bar.
+Public Const MACRO_VERSION As String = "0.3.2"
 
 Dim swApp As SldWorks.SldWorks
 Dim swModel As SldWorks.ModelDoc2
@@ -47,9 +115,9 @@ End Sub
 ' The object parameters are ByVal so that VBA converts the interface for us.
 ' Passed ByRef, handing a SketchLine to a SketchSegment parameter (or an
 ' Object to a typed one) is a "ByRef argument type mismatch" compile error.
-Public Sub DrawAndDimensionSketch(ByVal swAppIn As SldWorks.SldWorks, _
-                                  ByVal swModelIn As SldWorks.ModelDoc2, _
-                                  ByVal W As Double, ByVal H As Double, ByVal R As Double)
+Public Sub DrawSquound(ByVal swAppIn As SldWorks.SldWorks, _
+                       ByVal swModelIn As SldWorks.ModelDoc2, _
+                       ByVal W As Double, ByVal H As Double, ByVal R As Double)
 
     Set swApp = swAppIn
     Set swModel = swModelIn
@@ -153,21 +221,9 @@ Public Sub DrawAndDimensionSketch(ByVal swAppIn As SldWorks.SldWorks, _
     swModel.SketchAddConstraints "sgSAMELENGTH"
     swModel.ClearSelection2 True
 
-    ' --- dimensions -----------------------------------------------
-    ' Measured between the two opposing straight sides, so the value is
-    ' the overall size rather than the shortened straight run.
-    Dim gap As Double
-    gap = R + 0.01                                   ' clear of the profile
-
-    AddLinearDim swLeftLn, swRightLn, 0#, -halfH - gap, W, "Width"
-    AddLinearDim swTopLn, swBottomLn, halfW + gap, 0#, H, "Height"
-
-    Dim swRadDim As SldWorks.DisplayDimension
-    swModel.ClearSelection2 True
-    swArcTR.Select4 True, Nothing
-    Set swRadDim = swModel.AddDimension2(halfW + gap, halfH + gap, 0#)
-    SetDimValue swRadDim, R, "CornerRadius"
-    swModel.ClearSelection2 True
+    ' No dimensions are added. The relations above leave five degrees of
+    ' freedom - position x and y, width, height and corner radius - so the
+    ' shape is drawn at the requested size but stays free to adjust.
 
     ' The sketch is left open so you can carry on working in it.
     ' AddToDB bypasses the graphics layer, so ask for a redraw.
@@ -252,34 +308,3 @@ Private Sub AddRelation2(ByVal swSeg1 As SldWorks.SketchSegment, ByVal swSeg2 As
 
 End Sub
 
-Private Sub AddLinearDim(ByVal swSeg1 As SldWorks.SketchSegment, ByVal swSeg2 As SldWorks.SketchSegment, _
-                         ByVal x As Double, ByVal y As Double, _
-                         ByVal dimValue As Double, ByVal dimName As String)
-
-    Dim swDispDim As SldWorks.DisplayDimension
-
-    swModel.ClearSelection2 True
-    swSeg1.Select4 True, Nothing
-    swSeg2.Select4 True, Nothing
-    Set swDispDim = swModel.AddDimension2(x, y, 0#)
-    SetDimValue swDispDim, dimValue, dimName
-    swModel.ClearSelection2 True
-
-End Sub
-
-' AddDimension2 hands back a DisplayDimension, which is only the
-' annotation. The driving value lives on the Dimension underneath it,
-' and SystemValue is always in metres.
-Private Sub SetDimValue(ByVal swDispDim As SldWorks.DisplayDimension, _
-                        ByVal dimValue As Double, ByVal dimName As String)
-
-    If swDispDim Is Nothing Then Exit Sub
-
-    Dim swDim As SldWorks.Dimension
-    Set swDim = swDispDim.GetDimension
-    If swDim Is Nothing Then Exit Sub
-
-    swDim.SystemValue = dimValue
-    swDim.Name = dimName
-
-End Sub
