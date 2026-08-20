@@ -19,15 +19,16 @@
 '
 ' To use, open or start a sketch, then run the macro.
 '
-'   Version   0.3.2
-'   Date      2026-08-13
+'   Version   0.3.3
+'   Date      2026-08-20
 '   Author    James Debono
 '   Licence   MIT - full text below
-'   Source    https://github.com/james-debono/solidworks-draw-squound
+'   Source    https://github.com/james-debono/draw-squound-sw-macro
 '
 '------------------------------------------------------------------------------
 ' CHANGELOG (summary - see CHANGELOG.md for the full history)
 '
+'   0.3.3   Version shown in brackets in the title bar. Source URL updated.
 '   0.3.2   Version shown in the form's title bar.
 '   0.3.1   Licence and header.
 '   0.3.0   One scale input instead of three, and no driving dimensions.
@@ -78,7 +79,7 @@ Option Explicit
 
 ' Must match the Version line in the header block above. build-library.ps1 checks
 ' that they agree and fails the build if they drift. Shown in the form's title bar.
-Public Const MACRO_VERSION As String = "0.3.2"
+Public Const MACRO_VERSION As String = "0.3.3"
 
 Dim swApp As SldWorks.SldWorks
 Dim swModel As SldWorks.ModelDoc2

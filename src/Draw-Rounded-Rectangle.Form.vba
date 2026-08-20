@@ -4,11 +4,11 @@
 ' Collects the scale and starts the drawing. All geometry work is done in the
 ' main module.
 '
-'   Version   0.3.2
-'   Date      2026-08-13
+'   Version   0.3.3
+'   Date      2026-08-20
 '   Author    James Debono
 '   Licence   MIT - full text in the header of the main module
-'   Source    https://github.com/james-debono/solidworks-draw-squound
+'   Source    https://github.com/james-debono/draw-squound-sw-macro
 '
 ' Controls
 '   TextBox1        scale, entered in millimetres
@@ -84,7 +84,7 @@ Private Sub UserForm_Initialize()
 
     ' Shown in the form's title bar, so the version is visible whenever the macro
     ' is used. Overrides whatever caption the designer holds.
-    Me.Caption = "Draw Squound " & MACRO_VERSION
+    Me.Caption = "Draw Squound (" & MACRO_VERSION & ")"
 
     TextBox1.Text = "100"    ' scale, mm
 
