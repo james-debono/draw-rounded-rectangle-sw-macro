@@ -1,9 +1,9 @@
 '==============================================================================
-' Draw Squound
+' Draw Rounded Rectangle
 '
-' Draws a "squound" - a rounded rectangle - into the sketch you already have open
-' for editing, centred on that sketch's origin. Whichever plane or face the sketch
-' sits on is where the shape lands.
+' Draws a rounded rectangle into the sketch you already have open for editing,
+' centred on that sketch's origin. Whichever plane or face the sketch sits on is
+' where the shape lands.
 '
 ' Type one number for the scale and the corner radius comes out at one tenth of it.
 '
@@ -19,15 +19,16 @@
 '
 ' To use, open or start a sketch, then run the macro.
 '
-'   Version   0.3.3
-'   Date      2026-08-20
+'   Version   0.4.0
+'   Date      2026-08-21
 '   Author    James Debono
 '   Licence   MIT - full text below
-'   Source    https://github.com/james-debono/draw-squound-sw-macro
+'   Source    https://github.com/james-debono/draw-rounded-rectangle-sw-macro
 '
 '------------------------------------------------------------------------------
 ' CHANGELOG (summary - see CHANGELOG.md for the full history)
 '
+'   0.4.0   Renamed from "Draw Squound". Now has its own repository.
 '   0.3.3   Version shown in brackets in the title bar. Source URL updated.
 '   0.3.2   Version shown in the form's title bar.
 '   0.3.1   Licence and header.
@@ -65,10 +66,10 @@ Option Explicit
 
 '--- Notes for maintenance ----------------------------------------------------
 '
-' Every length passed to DrawSquound is in METRES, the SolidWorks internal unit
+' Every length passed to DrawRoundedRectangle is in METRES, the SolidWorks internal unit
 ' system. The form converts from millimetres.
 '
-' DrawSquound stays general and knows nothing about "scale" - a future form with
+' DrawRoundedRectangle stays general and knows nothing about "scale" - a future form with
 ' separate width and height inputs needs no change here.
 '
 ' ISketchManager.AddToDB is set True before creating geometry and restored after.
@@ -79,7 +80,7 @@ Option Explicit
 
 ' Must match the Version line in the header block above. build-library.ps1 checks
 ' that they agree and fails the build if they drift. Shown in the form's title bar.
-Public Const MACRO_VERSION As String = "0.3.3"
+Public Const MACRO_VERSION As String = "0.4.0"
 
 Dim swApp As SldWorks.SldWorks
 Dim swModel As SldWorks.ModelDoc2
@@ -116,7 +117,7 @@ End Sub
 ' The object parameters are ByVal so that VBA converts the interface for us.
 ' Passed ByRef, handing a SketchLine to a SketchSegment parameter (or an
 ' Object to a typed one) is a "ByRef argument type mismatch" compile error.
-Public Sub DrawSquound(ByVal swAppIn As SldWorks.SldWorks, _
+Public Sub DrawRoundedRectangle(ByVal swAppIn As SldWorks.SldWorks, _
                        ByVal swModelIn As SldWorks.ModelDoc2, _
                        ByVal W As Double, ByVal H As Double, ByVal R As Double)
 
@@ -234,7 +235,7 @@ Public Sub DrawSquound(ByVal swAppIn As SldWorks.SldWorks, _
 
 CleanUp:
     swSketchMgr.AddToDB = bAddToDBOrig
-    MsgBox "Draw Squound failed: " & Err.Description & " (error " & Err.Number & ")", vbCritical
+    MsgBox "Draw Rounded Rectangle failed: " & Err.Description & " (error " & Err.Number & ")", vbCritical
 
 End Sub
 

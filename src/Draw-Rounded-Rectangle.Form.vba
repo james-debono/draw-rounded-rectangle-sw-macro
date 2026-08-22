@@ -1,14 +1,14 @@
 '==============================================================================
-' Draw Squound - user interface
+' Draw Rounded Rectangle - user interface
 '
 ' Collects the scale and starts the drawing. All geometry work is done in the
 ' main module.
 '
-'   Version   0.3.3
-'   Date      2026-08-20
+'   Version   0.4.0
+'   Date      2026-08-21
 '   Author    James Debono
 '   Licence   MIT - full text in the header of the main module
-'   Source    https://github.com/james-debono/draw-squound-sw-macro
+'   Source    https://github.com/james-debono/draw-rounded-rectangle-sw-macro
 '
 ' Controls
 '   TextBox1        scale, entered in millimetres
@@ -56,8 +56,8 @@ Private Sub CommandButton1_Click()
         Exit Sub
     End If
 
-    ' DrawSquound takes width, then height, then corner radius, all in metres
-    DrawSquound swApp, swModel, scaleValue, scaleValue, scaleValue * CORNER_RADIUS_FRACTION
+    ' DrawRoundedRectangle takes width, then height, then corner radius, all in metres
+    DrawRoundedRectangle swApp, swModel, scaleValue, scaleValue, scaleValue * CORNER_RADIUS_FRACTION
 
     Me.Hide
 
@@ -84,7 +84,7 @@ Private Sub UserForm_Initialize()
 
     ' Shown in the form's title bar, so the version is visible whenever the macro
     ' is used. Overrides whatever caption the designer holds.
-    Me.Caption = "Draw Squound (" & MACRO_VERSION & ")"
+    Me.Caption = "Draw Rounded Rectangle (" & MACRO_VERSION & ")"
 
     TextBox1.Text = "100"    ' scale, mm
 
