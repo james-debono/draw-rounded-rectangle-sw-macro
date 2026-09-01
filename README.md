@@ -4,8 +4,8 @@ A SOLIDWORKS macro that draws a rounded rectangle into the sketch you already ha
 open. Type one number for the scale, click Draw, and you get the shape with the
 sketch relations that keep it a proper rounded rectangle.
 
-**Tested on SOLIDWORKS 2022, 2024 and 2025** — those are the versions I
-have. Other versions are likely to work; they are simply untested.
+**Tested on SOLIDWORKS 2022, 2024 and 2025.** Other versions are likely to
+work; they are simply untested.
 
 > **Want all ten macros at once?** This one is part of the [MacroShelf
 > Collection](https://github.com/james-debono/macroshelf-collection-sw-macro-library) — a single
